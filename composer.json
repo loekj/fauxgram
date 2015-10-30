@@ -1,5 +1,12 @@
 {
     "require": {
-        "silex/silex": "~1.3"
+        "silex/silex": "~1.3",
+        "symfony/twig-bridge": "~2.3",
+        "jasongrimes/silex-simpleuser": "~2.0"
+    },
+    "autoload": {
+    	"psr-4": {
+    		"Controller\\": "src/Controller/"
+    	}
     }
 }
