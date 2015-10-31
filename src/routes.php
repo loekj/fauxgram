@@ -8,10 +8,10 @@ use Symfony\Component\HttpFoundation\Response;
 //     return new Response('WeasdasdasdSilex app');
 // });
 # Web routing
-$app->get('/register', 'Controller\PageController::registerAction');
-$app->get('/hello', 'Controller\PageController::helloAction');
 $app->get('/', 'Controller\PageController::indexAction');
-$app->get('/user', 'Controller\PageController::userAction');
+$app->get('/register', 'Controller\AuthController::registerAction');
+$app->get('/login', 'Controller\AuthController::loginAction');
+$app->get('/logout', 'Controller\AuthController::logoutAction');
 
 # Admin routing
 #$app->get('/phpmyadmin', 'Controller\AdminController::phpmyadminAction');
@@ -20,15 +20,14 @@ $app->get('/user', 'Controller\PageController::userAction');
 ## Error Handlers ##############################################################
 #
 $app->error(function (\Exception $e, $code) use ($app) {
-	switch ($code) {
-		case 404:
-			$message = $app['twig']->render('404error.html.twig');
-			break;
-		default:
-			$message = 'We are sorry, but something went terribly wrong.';
+	if ($code == 404) {
+		$message = $app['twig']->render('404error.html.twig');
+		break;
+	} else {
+		$message = 'Something went wrong...<br>';
 	}
 	if ($app['debug']) {
-		$message .= ' Error Message: ' . $e->getMessage();
+		$message .= '&emsp;Error Message:<br>&emsp;' . $e->getMessage();
 	}
 	return new Response($message, $code);
 });

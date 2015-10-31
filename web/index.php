@@ -20,7 +20,7 @@ $app->register(new Silex\Provider\SecurityServiceProvider(), array(
         'default' => array(
             'pattern' => '^.*$',
             'anonymous' => true, // Needed as the login path is under the secured area
-            'form' => array('login_path' => '/login', 'check_path' => '/login_check'),
+            'form' => array('login_path' => '/', 'check_path' => '/login_check'),
             'logout' => array('logout_path' => '/logout'), // url to call for logging out
             'users' => $app->share(function() use ($app) {
                 // Specific class App\User\UserProvider is described below
@@ -34,7 +34,6 @@ $app->register(new Silex\Provider\SecurityServiceProvider(), array(
         array('^/user$', ''), // This url is available as anonymous user
     )
 ));
-
 # Set middleware
 $app->register(new Silex\Provider\TwigServiceProvider(), array(
     'twig.path' => __DIR__.'/../views',
@@ -52,13 +51,7 @@ $app->register(new Silex\Provider\DoctrineServiceProvider(), array(
         'password' => 'behance',
     ),
 ));
-// $app['db']->insert('users', array(
-// 	'email' => 'blasdceh@stxcanford.edu',
-// 	'password' => $app['security.encoder.digest']->encodePassword('banaassan', ''),
-// 	'fname' => 'Blexxxh',
-// 	'lname' => 'Baxxxxrk',
-// 	'roles' => 'ROLE_USER'
-// 	));
+
 require_once __DIR__ . '/../src/routes.php';
 
 $app->run();
