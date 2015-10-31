@@ -26,17 +26,18 @@ namespace Controller;
 		 */
 		 protected $file = Null;
 
-
+		 protected $db = Null;
 
 		/**
 		 * Constructor: __construct
 		 * Allow for CORS, assemble and pre-process the data
 		 */
-		public function __construct($request) {
+		public function __construct($request, $pdo) {
 	        header("Access-Control-Allow-Orgin: *");
 	        header("Access-Control-Allow-Methods: *");
 	        header("Content-Type: application/json");
 		
+			$this->db = $pdo;
 			$this->args = explode('/', rtrim($request, '/'));
 	        $this->endpoint = array_shift($this->args);
 	        if (array_key_exists(0, $this->args) && !is_numeric($this->args[0])) {

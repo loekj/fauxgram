@@ -8,20 +8,17 @@ $mysqli = new mysqli($dbhost, $dbuser, $dbpass, $db);
 if( $mysqli->connect_errno ) {
   die('Could not connect: ' . $mysqli->connect_error);
 }
-$sql = "CREATE TABLE users( ".
+$sql = "CREATE TABLE comments( ".
        "id INT NOT NULL AUTO_INCREMENT, ".
-       "email VARCHAR(100) NOT NULL DEFAULT '', ".
-       "password VARCHAR(255) NOT NULL DEFAULT '', ".
-       "fname VARCHAR(50) NOT NULL DEFAULT '', ".
-       "lname VARCHAR(50) NOT NULL DEFAULT '', ".
-       "roles VARCHAR(50) NOT NULL DEFAULT '', ".
-       "PRIMARY KEY ( id ), ".
-       "UNIQUE KEY unique_email ( email ) ".
+       "owner VARCHAR(100) NOT NULL DEFAULT '', ".
+       "added TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, ".
+       "content TINYBLOB NOT NULL, ".
+       "PRIMARY KEY ( id )".
        ") ENGINE=InnoDB DEFAULT CHARSET=utf8;";
 if(! $mysqli->query($sql)) {
   die('Could not create table. Error: ' . $mysqli->errno);
 }
 
-echo "Table users created successfully\n";
+echo "Table comments created successfully\n";
 $mysqli->close();
 ?>

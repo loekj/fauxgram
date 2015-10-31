@@ -3,11 +3,10 @@
 use Controller\APIController;
 
 require_once __DIR__.'/../vendor/autoload.php';
-// $app = new Silex\Application();
+$app = new Silex\Application();
 
-// # Set to false in production
-// $app['debug'] = true;
-
+# Set to false in production
+$app['debug'] = true;
 
 // $app->register(new Silex\Provider\SessionServiceProvider());
 // $app->register(new Silex\Provider\SecurityServiceProvider(), array(
@@ -37,7 +36,7 @@ require_once __DIR__.'/../vendor/autoload.php';
 // // ));
 
 
-// # set up providers
+# set up providers
 // $app->register(new Silex\Provider\DoctrineServiceProvider(), array(
 //     'db.options' => array(
 //         'driver' => 'pdo_mysql',
@@ -47,7 +46,8 @@ require_once __DIR__.'/../vendor/autoload.php';
 //         'password' => 'behance',
 //     ),
 // ));
-
+#require_once __DIR__ . '/../src/getPDO.php';
+#$pdo = getPDO();
 //require_once __DIR__ . '/../src/routes.php';
 
 // Requests from the same server don't have a HTTP_ORIGIN header
@@ -56,7 +56,7 @@ if (!array_key_exists('HTTP_ORIGIN', $_SERVER)) {
 }
 
 try {
-    $API = new APIController($_REQUEST['request'], $_SERVER['HTTP_ORIGIN']);
+    $API = new APIController($_REQUEST, $_SERVER['HTTP_ORIGIN']);
     echo $API->processAPI();
 } catch (Exception $e) {
     echo json_encode(Array('error' => $e->getMessage()));

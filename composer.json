@@ -9,7 +9,8 @@
     "autoload": {
     	"psr-4": {
     		"Controller\\": "src/Controller/",
-            "Connection\\": "src/Connection/"
+            "Connection\\": "src/Connection/",
+            "APIException\\": "src/Exception/"
     	}
     }
 }

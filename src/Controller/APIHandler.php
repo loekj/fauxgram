@@ -3,6 +3,8 @@
 namespace Controller;
 	use Silex\Application;
 	use Symfony\Component\HttpFoundation\Request;
+	use APIException\APIException as APIException;
+	use PDO;
 
 	# cannot have an instance
 	abstract class APIHandler {
@@ -27,7 +29,11 @@ namespace Controller;
 		 */
 		 protected $file = Null;
 
-
+		 /** Silex app for nice functionality
+		 * like Doctrine/dbal
+		 */
+		 #protected $app = Null;
+		 protected $db = Null;
 
 		/**
 		 * Constructor: __construct
@@ -37,9 +43,12 @@ namespace Controller;
 	        header("Access-Control-Allow-Orgin: *");
 	        header("Access-Control-Allow-Methods: *");
 	        header("Content-Type: application/json");
-		
-			$this->args = explode('/', rtrim($request, '/'));
-	        $this->endpoint = array_shift($this->args);
+			
+
+			#$this->args = explode('/', rtrim($request, '/'));
+	        #$this->endpoint = array_shift($this->args);
+	        $this->endpoint = array_shift($request);
+	        // $this->args = $request;
 	        // if (array_key_exists(0, $this->args) && !is_numeric($this->args[0])) {
 	        //     $this->verb = array_shift($this->args);
 	        // }
@@ -59,18 +68,9 @@ namespace Controller;
 
 	        switch($this->method) {
 		        case 'DELETE':
-		        case 'POST':
-		            $this->request = $this->_cleanInputs($_POST);
-		            break;
-		        case 'GET':
-		            $this->request = $this->_cleanInputs($_GET);
-		            break;
-		        case 'PUT':
-		            $this->request = $this->_cleanInputs($_GET);
-		            $this->file = file_get_contents("php://input");
-		            break;
 		        default:
-		            $this->_response('Invalid Method', 405);
+		        	$this->request = $this->_cleanInputs($_GET);
+		            #$this->_response('Invalid Method', 405);
 		            break;
 	        }
 	    }
@@ -81,7 +81,11 @@ namespace Controller;
 		public function processAPI() {
 	        if (method_exists($this, $this->endpoint)) {
 	        	# calls endpoint! :D
-	            return $this->_response($this->{$this->endpoint}($this->args));
+	        	try {
+	            	return $this->_response($this->{$this->endpoint}($this->request));
+	            } catch (APIException $e) {
+	            	return $this->_response($e->getMessage(), $e->getCode());
+	            }
 	        }
 	        return $this->_response("No Endpoint: $this->endpoint", 404);
 	    }
@@ -106,10 +110,25 @@ namespace Controller;
 	    private function _requestStatus($code) {
 	        $status = array(  
 	            200 => 'OK',
+	            400 => 'Bad Request',
 	            404 => 'Not Found',   
 	            405 => 'Method Not Allowed',
 	            500 => 'Internal Server Error',
 	        ); 
 	        return ($status[$code])?$status[$code]:$status[500]; 
 	    }	    
+
+
+		protected function _connectDB() {
+			$dsn = 'mysql:dbname=' . $_SERVER['DB_DB'] . ';host=' . $_SERVER['DB_HOST'];
+			try {
+			    $this->db = new PDO($dsn, $_SERVER['DB_LOGIN'], $_SERVER['DB_PASSWD']);
+			} catch (PDOException $e) {
+			    return $this->_response($e->getMessage(), 500);
+			}		
+		}
+
+		protected function _disconnectDB() {
+			$this->db = Null;
+		}		
 	}

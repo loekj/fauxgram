@@ -9,11 +9,11 @@ if( $mysqli->connect_errno ) {
   die('Could not connect: ' . $mysqli->connect_error);
 }
 
-$sql = "DROP TABLE users;";
+$sql = "DROP TABLE comments;";
 if(! $mysqli->query($sql)) {
   die('Could not drop table. Error: ' . $mysqli->errno);
 }
 
-echo "Table users dropped successfully\n";
+echo "Table comments dropped successfully\n";
 $mysqli->close();
 ?>
