@@ -1,17 +1,13 @@
 <?php
-#ini_set("file_uploads", "On")
-// require_once __DIR__.'/../vendor/autoload.php';
 
+use Controller\APIController;
+
+require_once __DIR__.'/../vendor/autoload.php';
 // $app = new Silex\Application();
 
 // # Set to false in production
 // $app['debug'] = true;
 
-// // # One thread only. So no multiple request handling here.
-// // $filename = __DIR__.preg_replace('#(\?.*)$#', '', $_SERVER['REQUEST_URI']);
-// // if (php_sapi_name() === 'cli-server' && is_file($filename)) {
-// //     return false;
-// // }
 
 // $app->register(new Silex\Provider\SessionServiceProvider());
 // $app->register(new Silex\Provider\SecurityServiceProvider(), array(
@@ -34,11 +30,11 @@
 //         array('^/user$', ''), // This url is available as anonymous user
 //     )
 // ));
-// # Set middleware
-// $app->register(new Silex\Provider\TwigServiceProvider(), array(
-//     'twig.path' => __DIR__.'/../views',
-// ));
 
+// // # Set middleware
+// // $app->register(new Silex\Provider\TwigServiceProvider(), array(
+// //     'twig.path' => __DIR__.'/../views',
+// // ));
 
 
 // # set up providers
@@ -52,7 +48,18 @@
 //     ),
 // ));
 
-// require_once __DIR__ . '/../src/routes.php';
+//require_once __DIR__ . '/../src/routes.php';
 
-// $app->run();
+// Requests from the same server don't have a HTTP_ORIGIN header
+if (!array_key_exists('HTTP_ORIGIN', $_SERVER)) {
+    $_SERVER['HTTP_ORIGIN'] = $_SERVER['SERVER_NAME'];
+}
+
+try {
+    $API = new APIController($_REQUEST['request'], $_SERVER['HTTP_ORIGIN']);
+    echo $API->processAPI();
+} catch (Exception $e) {
+    echo json_encode(Array('error' => $e->getMessage()));
+}
+#$app->run();
 ?>
