@@ -7,7 +7,8 @@
     		"Controller\\": "src/Controller/",
             "Connection\\": "src/Connection/",
             "APIException\\": "src/Exception/",
-            "APIEvent\\": "src/APIEvent/"
+            "APIEvent\\": "src/APIEvent/",
+            "Database\\": "src/Database/"
     	}
     }
 }

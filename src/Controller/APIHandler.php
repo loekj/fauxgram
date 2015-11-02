@@ -6,6 +6,7 @@ namespace Controller;
     use Symfony\Component\EventDispatcher\Event;	
 	use APIEvent;
 	use PDO;
+	use Database;
 
 	require_once __DIR__.'/../APIEvent/APIDispatcher.php';
 	require_once __DIR__.'/../APIEvent/EmailEvent.php';
@@ -13,20 +14,20 @@ namespace Controller;
 	abstract class APIHandler {
 		protected $method = '';
 		protected $endpoint = '';
-		protected $db = Null;
+		protected $db_obj = Null;
 		protected $dispatcher = Null;
 		protected $listener = Null;
+		protected $db = Null;
 
-		public function __construct($request) {
+		public function __construct($request, Database\APIDatabase $db_obj) {
 	        header("Access-Control-Allow-Orgin: *");
 	        header("Access-Control-Allow-Methods: *");
 	        header("Content-Type: application/json");
 			
+	        $this->db_obj = $db_obj;
+	        $this->_connectDB();
 
-			#$this->args = explode('/', rtrim($request, '/'));
-	        #$this->endpoint = array_shift($this->args);
 	        $this->endpoint = array_shift($request);
-
 	        $this->method = $_SERVER['REQUEST_METHOD'];
 
 	        # verb tunnelling
@@ -45,7 +46,7 @@ namespace Controller;
 	        	case 'POST':
 	        	case 'GET':
 	        	case 'DELETE':
-	        		$this->request = $this->_cleanInputs($_GET);
+	        		$this->request = $this->_escapeInputs($request);
 	        		break;
 		        default:
 		            $this->_response('Invalid method', 405);
@@ -75,16 +76,9 @@ namespace Controller;
 	        return json_encode($data, JSON_UNESCAPED_SLASHES);
 	    }
 
-	    private function _cleanInputs($data) {
-	        $clean_input = Array();
-	        if (is_array($data)) {
-	            foreach ($data as $k => $v) {
-	                $clean_input[$k] = $this->_cleanInputs($v);
-	            }
-	        } else {
-	            $clean_input = trim(strip_tags($data));
-	        }
-	        return $clean_input;
+	    private function _escapeInputs($data) {
+			$data = array_map(array($this->db, 'quote'), $data);
+	    	return $data;
 	    }
 
 	    private function _requestStatus($code) {
@@ -96,20 +90,15 @@ namespace Controller;
 	            500 => 'Internal Server Error',
 	        ); 
 	        return ($status[$code])?$status[$code]:$status[500]; 
-	    }	    
+	    }	   
 
+		private function _connectDB() {
+            $dsn = 'mysql:dbname=' . $_SERVER['DB_DB'] . ';host=' . $_SERVER['DB_HOST'];
+            $this->db = new PDO($dsn, $_SERVER['DB_LOGIN'], $_SERVER['DB_PASSWD']);
+            $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        }
 
-		protected function _connectDB() {
-			$dsn = 'mysql:dbname=' . $_SERVER['DB_DB'] . ';host=' . $_SERVER['DB_HOST'];
-			try {
-			    $this->db = new PDO($dsn, $_SERVER['DB_LOGIN'], $_SERVER['DB_PASSWD']);
-			} catch (Exception $e) {
-			    return $this->_response($e->getMessage(), 500);
-			}
-			$this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-		}
-
-		protected function _disconnectDB() {
+		public function disconnectDB() {
 			$this->db = Null;
 		}
 

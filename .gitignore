@@ -1,4 +1,5 @@
 vendor/
 resource/img/*
-!resource/img/.htaccess
-!resource/img/thumb/.htaccess
+! resource/img/thumb/.htaccess
+! resource/img/.htaccess
+

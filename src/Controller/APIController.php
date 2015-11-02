@@ -11,24 +11,22 @@ namespace Controller;
     class APIController extends APIHandler {
         //protected $User;
 
-        public function __construct($request, $origin) {
-            parent::__construct($request);
+        public function __construct($request, $origin, $db_obj) {
+            parent::__construct($request, $db_obj);
         }
 
          protected function user() {
             if ($this->method == 'POST') {
                 $required = array(
-                'email',
-                'password',
-                'fname',
-                'lname'
-                );
+                    'email',
+                    'password',
+                    'fname',
+                    'lname'
+                    );
                 if ($missing = array_diff_key(array_flip($required), $this->request)) {
                     throw new APIException("Invalid query string. Must contain email, password, fname, lname", 400);
                 }
 
-
-                $this->_connectDB();
                 try {
                     $sql = $this->db->prepare("SELECT 1 FROM users WHERE email=?");
                     $sql->execute(array($this->request['email']));
@@ -42,11 +40,13 @@ namespace Controller;
                 # Create a random salt and hash. Using Blowfish "$2a$"
                 $hash = password_hash($this->request['password'],PASSWORD_BCRYPT, array('cost' => 10));
 
-                $sql = "INSERT INTO users (email, password, fname, lname) VALUES (" .
-                    $this->db->quote($this->request['email']) . ", " .
-                    $this->db->quote($hash) . ", " .
-                    $this->db->quote($this->request['fname']) . ", " .
-                    $this->db->quote($this->request['lname']) . ")";
+                $db_vals = array(
+                    $this->request['email'],
+                    $this->db->quote($hash),
+                    $this->request['fname'],
+                    $this->request['lname']
+                    );
+                $sql = "INSERT INTO users (email, password, fname, lname) VALUES (" . implode(', ', $db_vals) . ")";
                 try {
                     $sth = $this->db->query($sql);
                 } catch(Exception $e) {
@@ -60,7 +60,7 @@ namespace Controller;
                     echo $e->getMessage();
                 }
 
-                $this->_disconnectDB();
+                
                 return "Registered successfully!";
             } elseif ($this->method == 'GET') {
                 $required = array(
@@ -70,7 +70,6 @@ namespace Controller;
                 if ($missing = array_diff_key(array_flip($required), $this->request)) {
                     throw new APIException("Invalid query string. Must contain email", 400);
                 }
-                $this->_connectDB();
                 
                 # Get image and comments
                 $thumbpath = __DIR__ . '/../../resource/img/thumb/';
@@ -86,7 +85,7 @@ namespace Controller;
                 } catch (Exception $e) {
                     throw new APIException($e->getMessage(), 400);
                 }
-                $this->_disconnectDB();
+                
                 return $result;
 
             } else {
@@ -108,7 +107,6 @@ namespace Controller;
                 if ($missing = array_diff_key(array_flip($required), $this->request)) {
                     throw new APIException("Invalid query string. Must contain email, password, url, title", 400);
                 }
-                $this->_connectDB();
                 $this->_checkRegistered();
 
                 $file = $this->request['url'];
@@ -220,7 +218,6 @@ namespace Controller;
                     $file_width,
                     $file_height
                     );
-                $db_vals = array_map(array($this->db, 'quote'), $db_vals);
                 $sql = "INSERT INTO images (owner, path, source, title, ext, bytes, width, height) VALUES (" . implode(', ', $db_vals) . ")";
                 try {
                     $this->db->query($sql);                               
@@ -229,7 +226,7 @@ namespace Controller;
                     throw new APIException($e->getMessage(), 500);
                 }
 
-                $this->_disconnectDB();
+                
                 return 'Success!';
             } elseif ($this->method == 'GET') {
                 $required = array(
@@ -239,7 +236,6 @@ namespace Controller;
                 if ($missing = array_diff_key(array_flip($required), $this->request)) {
                     throw new APIException("Invalid query string. Must contain id", 400);
                 }
-                $this->_connectDB();
                 
                 # Get image
                 $sql = $this->db->prepare("SELECT * FROM images WHERE id=?");
@@ -247,7 +243,7 @@ namespace Controller;
                 if (!$result = $sql->fetchAll(PDO::FETCH_ASSOC)) {
                     throw new APIException("No image found!", 400);
                 }
-                $this->_disconnectDB();
+                
                 $result = $result[0];
                 #unset($result['path']);
                 return $result;       
@@ -262,7 +258,7 @@ namespace Controller;
                 if ($missing = array_diff_key(array_flip($required), $this->request)) {
                     throw new APIException("Invalid query string. Must contain email, password, id", 400);
                 }
-                $this->_connectDB();
+
                 $this->_checkRegistered();
                 
                 # Get image path
@@ -288,7 +284,7 @@ namespace Controller;
                     throw new APIException($e->getMessage(), 400);
                 }
 
-                $this->_disconnectDB();
+                
                 return "Succes!";
             } elseif ($this->method == 'POST') {
                 $required = array(
@@ -301,7 +297,7 @@ namespace Controller;
                 if ($missing = array_diff_key(array_flip($required), $this->request)) {
                     throw new APIException("Invalid query string. Must contain email, password, title, id", 400);
                 }
-                $this->_connectDB();
+
                 $this->_checkRegistered();
 
                 try {
@@ -313,7 +309,7 @@ namespace Controller;
                 if (!$sql->rowCount()) {
                     throw new APIException("Image ID does not exist or title had same value", 400);
                 }
-                $this->_disconnectDB();
+                
                 return "Succes!";
             } else {
                 throw new APIException("Endpoint only accepts GET, POST, PUT and DELETE requests", 405);
@@ -334,7 +330,6 @@ namespace Controller;
                     throw new APIException("Invalid query string. Must contain email, password, content, id", 400);
                 }
 
-                $this->_connectDB();
                 $this->_checkRegistered();
 
                 # Check if image exist
@@ -376,8 +371,6 @@ namespace Controller;
                         }
                     }
                 }
-
-                $this->_disconnectDB();
                 $email_event_obj = new \APIEvent\EmailEvent($result_owner['owner'], $this->request['email'], $email_array, $this->request['content'], $this->request['id']);
                 $this->dispatcher->dispatch('new.comment', $email_event_obj);
                 return "Succes!";
@@ -390,7 +383,6 @@ namespace Controller;
                 if ($missing = array_diff_key(array_flip($required), $this->request)) {
                     throw new APIException("Invalid query string. Must contain image ID", 400);
                 }
-                $this->_connectDB();
                 
                 # Get image and comments
                 try {
@@ -407,7 +399,7 @@ namespace Controller;
                 } catch (Exception $e) {
                     throw new APIException($e->getMessage(), 400);
                 }
-                $this->_disconnectDB();
+
                 return $result;
 
             } else {
