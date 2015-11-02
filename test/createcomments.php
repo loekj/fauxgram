@@ -13,6 +13,7 @@ $sql = "CREATE TABLE comments( ".
        "owner VARCHAR(100) NOT NULL DEFAULT '', ".
        "added TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, ".
        "content TINYBLOB NOT NULL, ".
+       "imgid INT NOT NULL, ".
        "PRIMARY KEY ( id )".
        ") ENGINE=InnoDB DEFAULT CHARSET=utf8;";
 if(! $mysqli->query($sql)) {

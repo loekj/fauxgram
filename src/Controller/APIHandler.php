@@ -92,7 +92,7 @@ namespace Controller;
 
 	    private function _response($data, $status = 200) {
 	        header("HTTP/1.1 " . $status . " " . $this->_requestStatus($status));
-	        return json_encode($data);
+	        return json_encode($data, JSON_UNESCAPED_SLASHES);
 	    }
 
 	    private function _cleanInputs($data) {
@@ -123,12 +123,81 @@ namespace Controller;
 			$dsn = 'mysql:dbname=' . $_SERVER['DB_DB'] . ';host=' . $_SERVER['DB_HOST'];
 			try {
 			    $this->db = new PDO($dsn, $_SERVER['DB_LOGIN'], $_SERVER['DB_PASSWD']);
-			} catch (PDOException $e) {
+			} catch (Exception $e) {
 			    return $this->_response($e->getMessage(), 500);
-			}		
+			}
+			$this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 		}
 
 		protected function _disconnectDB() {
 			$this->db = Null;
-		}		
+		}
+
+		protected function _checkRegistered() {
+            # Check if user is registered
+            $sql = $this->db->prepare("SELECT * FROM users WHERE email=?");
+            $sql->execute(array($this->request['email']));
+            if (!$result = $sql->fetch(PDO::FETCH_ASSOC)) {
+                throw new APIException("User with this email is not registered!", 400);
+            }
+
+            # Check against hashed password in database
+            if (!password_verify($this->request['password'], $result['password'])) {
+                throw new APIException("Incorrect password!", 400);
+            }
+        }
+
+        protected function _rmImage($file_path) {
+        	unlink($file_path);
+        }
+
+        protected function _createThumb($file_path, $ext, $dest, $size) {
+        	switch($ext) {
+        		case 'jpg':
+        		case 'jpeg':
+        			$source = imagecreatefromjpeg($file_path);
+        			break;
+        		case 'png':
+        			$source = imagecreatefrompng($file_path);
+        			break;
+        		case 'gif':
+        			$source = imagecreatefromgif($file_path);
+        			break;
+        	}
+        	$curr_width = imagesx($source);
+        	$curr_height = imagesy($source);
+
+        	if ($curr_width > $size) {
+        		$height = floor($curr_height * $size / $curr_width);
+        		$width = $size;
+        	} elseif ($curr_height > $size) {
+        		$width = floor($curr_width * $size / $curr_height);
+        		$height = $size;
+        	} else {
+        		$width = $size;
+        		$height = $size;
+        	}
+
+        	$image_holder = imagecreatetruecolor($width, $height);
+
+			imagecopyresampled($image_holder, $source, 0, 0, 0, 0, $width, $height, $curr_width, $curr_height);
+			switch($ext) {
+        		case 'jpg':
+        		case 'jpeg':
+        			imagejpeg($image_holder, $dest);
+        			break;
+        		case 'png':
+        			imagepng($image_holder, $dest);
+        			break;
+        		case 'gif':
+        			imagegif($image_holder, $dest);
+        			break;
+        	}
+        	// chmod("$dest",777);
+        }
+
+        // protected function quote($x) {
+        //     return $this->db->quote($x);
+        // }        
+
 	}
