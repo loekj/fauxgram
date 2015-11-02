@@ -42,12 +42,11 @@ namespace Controller;
                 # Create a random salt and hash. Using Blowfish "$2a$"
                 $hash = password_hash($this->request['password'],PASSWORD_BCRYPT, array('cost' => 10));
 
-                $sql = "INSERT INTO users (email, password, fname, lname, roles) VALUES (" .
+                $sql = "INSERT INTO users (email, password, fname, lname) VALUES (" .
                     $this->db->quote($this->request['email']) . ", " .
                     $this->db->quote($hash) . ", " .
                     $this->db->quote($this->request['fname']) . ", " .
-                    $this->db->quote($this->request['lname']) . ", " .
-                    "'ROLE_USER')";
+                    $this->db->quote($this->request['lname']) . ")";
                 try {
                     $sth = $this->db->query($sql);
                 } catch(Exception $e) {
@@ -57,7 +56,6 @@ namespace Controller;
                 try {
                     $sth = $this->db->query('SELECT * FROM users');
                     $rows = $sth->fetchAll(PDO::FETCH_ASSOC);
-                    return $rows;
                 } catch(Exception $e) {
                     echo $e->getMessage();
                 }
@@ -282,13 +280,14 @@ namespace Controller;
                 $this->_rmImage(__DIR__ . '/../../resource/img/' . $result['path']);
                 $this->_rmImage(__DIR__ . '/../../resource/img/thumb/' . $result['path']);
 
-                # Delete image from database
+                # Delete image from database and comments
                 try {
-                    $sql = $this->db->prepare("DELETE FROM images WHERE id=?");
+                    $sql = $this->db->prepare("DELETE a, b FROM images a JOIN comments b ON a.id=b.imgid WHERE a.id=?");
                     $sql->execute(array($this->request['id']));            
                 } catch (Exception $e) {
                     throw new APIException($e->getMessage(), 400);
                 }
+
                 $this->_disconnectDB();
                 return "Succes!";
             } elseif ($this->method == 'POST') {

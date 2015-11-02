@@ -23,7 +23,7 @@ class APIListener {
 	private function _mailOwner($email_owner, $email_commenter, $content, $imgid){
 		$subject = $email_commenter . " commented on your photo!";
 		$body = $email_commenter . PHP_EOL . " commented on your photo with ID " . $imgid .
-			. PHP_EOL . PHP_EOL . "Comment:" . PHP_EOL . "'" . $content . "'" . PHP_EOL;
+			PHP_EOL . PHP_EOL . "Comment:" . PHP_EOL . "'" . $content . "'" . PHP_EOL;
 		$headers = 'From: admin@fauxgram.com' . "\r\n" .
     				'Reply-To: admin@fauxgram.com' . "\r\n" .
     				'X-Mailer: PHP/' . phpversion();

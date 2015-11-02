@@ -14,7 +14,6 @@ $sql = "CREATE TABLE users( ".
        "password VARCHAR(255) NOT NULL DEFAULT '', ".
        "fname VARCHAR(50) NOT NULL DEFAULT '', ".
        "lname VARCHAR(50) NOT NULL DEFAULT '', ".
-       "roles VARCHAR(50) NOT NULL DEFAULT '', ".
        "PRIMARY KEY ( id ), ".
        "UNIQUE KEY unique_email ( email ) ".
        ") ENGINE=InnoDB DEFAULT CHARSET=utf8;";
