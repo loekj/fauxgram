@@ -1,8 +1,8 @@
 <?php
 # app/src/Controller/APIController.php
 namespace Controller;
-    use Silex\Application;
-    use Symfony\Component\HttpFoundation\Request;
+    use Symfony\Component\EventDispatcher\EventDispatcher;
+    use Symfony\Component\EventDispatcher\Event;
     use APIException\APIException as APIException;
     use Exception;
     use PDO;
@@ -73,7 +73,23 @@ namespace Controller;
                     throw new APIException("Invalid query string. Must contain email", 400);
                 }
                 $this->_connectDB();
-                return "Succes!";
+                
+                # Get image and comments
+                $thumbpath = __DIR__ . '/../../resource/img/thumb/';
+                try {
+                    $sql = $this->db->prepare("SELECT a.id AS userid, a.email, CONCAT(a.fname, ' ', a.lname)" .
+                        " AS name, CONCAT('" . $thumbpath . "', b.path) AS thumbpath". 
+                        " FROM users a JOIN images b on a.email=b.owner" .
+                        " WHERE a.email=?");
+                    $sql->execute(array($this->request['email']));
+                    if (!$result = $sql->fetchAll(PDO::FETCH_ASSOC)) {
+                        throw new Exception("User unknown or no images uploaded yet.");
+                    }
+                } catch (Exception $e) {
+                    throw new APIException($e->getMessage(), 400);
+                }
+                $this->_disconnectDB();
+                return $result;
 
             } else {
                 throw new APIException("Endpoint only accepts GET requests", 405);
@@ -235,8 +251,9 @@ namespace Controller;
                 }
                 $this->_disconnectDB();
                 $result = $result[0];
-                unset($result['path']);
-                return $result;             
+                #unset($result['path']);
+                return $result;       
+
             } elseif ($this->method == 'DELETE') {
                 $required = array(
                     'email',
@@ -261,8 +278,9 @@ namespace Controller;
                     throw new APIException($e->getMessage(), 400);
                 }
 
-                # Delete image from server
+                # Delete image and thumbnail from server
                 $this->_rmImage(__DIR__ . '/../../resource/img/' . $result['path']);
+                $this->_rmImage(__DIR__ . '/../../resource/img/thumb/' . $result['path']);
 
                 # Delete image from database
                 try {
@@ -321,9 +339,9 @@ namespace Controller;
                 $this->_checkRegistered();
 
                 # Check if image exist
-                $sql = $this->db->prepare("SELECT * FROM images WHERE id=?");
+                $sql = $this->db->prepare("SELECT owner FROM images WHERE id=?");
                 $sql->execute(array($this->request['id']));
-                if (!$result = $sql->fetch(PDO::FETCH_ASSOC)) {
+                if (!$result_owner = $sql->fetch(PDO::FETCH_ASSOC)) {
                     throw new APIException("Image ID unknown.", 400);
                 }
 
@@ -341,7 +359,28 @@ namespace Controller;
                 } catch(Exception $e) {
                     throw new APIException($e->getMessage(), 500);
                 }
+
+                # Get all emails
+                try {
+                    $sql = $this->db->prepare("SELECT DISTINCT owner FROM comments WHERE imgid=?");
+                    $sql->execute(array($this->request['id']));
+                    $result = $sql->fetchAll(PDO::FETCH_ASSOC);
+                } catch (Exception $e) {
+                    throw new APIException($e->getMessage(), 400);
+                }
+
+                $email_array = array();
+                foreach($result as $idx => $arr) {
+                    foreach($arr as $k => $v) {
+                        if ($v != $result_owner['owner'] && $v != $this->request['email']) {
+                            array_push($email_array, $v);
+                        }
+                    }
+                }
+
                 $this->_disconnectDB();
+                $email_event_obj = new \APIEvent\EmailEvent($result_owner['owner'], $this->request['email'], $email_array, $this->request['content'], $this->request['id']);
+                $this->dispatcher->dispatch('new.comment', $email_event_obj);
                 return "Succes!";
 
             } elseif ($this->method == 'GET') {
@@ -354,35 +393,24 @@ namespace Controller;
                 }
                 $this->_connectDB();
                 
-                # Get image
+                # Get image and comments
                 try {
-                    $sql = $this->db->prepare("SELECT id, owner FROM images WHERE id=?");
+                    $sql = $this->db->prepare("SELECT a.id AS imgid, a.owner AS imageowner," .
+                                                 " a.path AS imagepath, b.id AS commentid," .
+                                                 " b.owner AS commentowner, b.added, b.content AS comment" .
+                                                 " FROM images a JOIN comments b on a.id=b.imgid" .
+                                                 " WHERE a.id=?" .
+                                                 " ORDER BY b.added DESC;");
                     $sql->execute(array($this->request['id']));
-                    if (!$result_img = $sql->fetch(PDO::FETCH_ASSOC)) {
-                        throw new Exception("Image ID unknown.");
-                    }
-                } catch (Exception $e) {
-                    throw new APIException($e->getMessage(), 400);
-                }
-                
-                # Get image comments
-                try {
-                    $sql = $this->db->prepare("SELECT id, owner, added, content FROM comments WHERE imgid=? ORDER BY added ASC");
-                    $sql->execute(array($this->request['id']));
-                    if (!$result_comments = $sql->fetchAll(PDO::FETCH_ASSOC)) {
-                        throw new Exception("No comments yet for this image!");
+                    if (!$result = $sql->fetchAll(PDO::FETCH_ASSOC)) {
+                        throw new Exception("Image ID unknown or no comments for this image.");
                     }
                 } catch (Exception $e) {
                     throw new APIException($e->getMessage(), 400);
                 }
                 $this->_disconnectDB();
-
-
-                $result = array(
-                    'image' => $result_img,
-                    'comments' => $result_comments
-                    );
                 return $result;
+
             } else {
                 throw new APIException("Endpoint only accepts GET and POST requests", 405);
             }

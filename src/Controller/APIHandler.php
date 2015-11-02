@@ -1,44 +1,22 @@
 <?php
 // app/src/Controller/AdminController.php
 namespace Controller;
-	use Silex\Application;
-	use Symfony\Component\HttpFoundation\Request;
 	use APIException\APIException as APIException;
+    use Symfony\Component\EventDispatcher\EventDispatcher;
+    use Symfony\Component\EventDispatcher\Event;	
+	use APIEvent;
 	use PDO;
 
+	require_once __DIR__.'/../APIEvent/APIDispatcher.php';
+	require_once __DIR__.'/../APIEvent/EmailEvent.php';
 	# cannot have an instance
 	abstract class APIHandler {
 		protected $method = '';
 		protected $endpoint = '';
-		/**
-		 * Property: verb
-		 * An optional additional descriptor about the endpoint, used for things that can
-		 * not be handled by the basic methods. eg: /files/process
-		 */
-		protected $verb = '';
-		/**
-		 * Property: args
-		 * Any additional URI components after the endpoint and verb have been removed, in our
-		 * case, an integer ID for the resource. eg: /<endpoint>/<verb>/<arg0>/<arg1>
-		 * or /<endpoint>/<arg0>
-		 */
-		protected $args = Array();
-		/**
-		 * Property: file
-		 * Stores the input of the PUT request
-		 */
-		 protected $file = Null;
+		protected $db = Null;
+		protected $dispatcher = Null;
+		protected $listener = Null;
 
-		 /** Silex app for nice functionality
-		 * like Doctrine/dbal
-		 */
-		 #protected $app = Null;
-		 protected $db = Null;
-
-		/**
-		 * Constructor: __construct
-		 * Allow for CORS, assemble and pre-process the data
-		 */
 		public function __construct($request) {
 	        header("Access-Control-Allow-Orgin: *");
 	        header("Access-Control-Allow-Methods: *");
@@ -48,10 +26,6 @@ namespace Controller;
 			#$this->args = explode('/', rtrim($request, '/'));
 	        #$this->endpoint = array_shift($this->args);
 	        $this->endpoint = array_shift($request);
-	        // $this->args = $request;
-	        // if (array_key_exists(0, $this->args) && !is_numeric($this->args[0])) {
-	        //     $this->verb = array_shift($this->args);
-	        // }
 
 	        $this->method = $_SERVER['REQUEST_METHOD'];
 
@@ -67,12 +41,18 @@ namespace Controller;
 	        }
 
 	        switch($this->method) {
-		        case 'DELETE':
+	        	case 'PUT':
+	        	case 'POST':
+	        	case 'GET':
+	        	case 'DELETE':
+	        		$this->request = $this->_cleanInputs($_GET);
+	        		break;
 		        default:
-		        	$this->request = $this->_cleanInputs($_GET);
-		            #$this->_response('Invalid Method', 405);
-		            break;
+		            $this->_response('Invalid method', 405);
 	        }
+			$this->dispatcher = new EventDispatcher();
+			$this->listener = new \APIEvent\APIListener();
+			$this->dispatcher->addListener('new.comment', array($this->listener, 'onNewComment'));
 	    }
 
 
@@ -195,9 +175,4 @@ namespace Controller;
         	}
         	// chmod("$dest",777);
         }
-
-        // protected function quote($x) {
-        //     return $this->db->quote($x);
-        // }        
-
-	}
+}
