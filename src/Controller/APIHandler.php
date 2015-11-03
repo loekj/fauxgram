@@ -8,6 +8,11 @@ namespace Controller;
 	use Database;
 
 	require_once __DIR__.'/../APIEvent/APIDispatcher.php';
+
+	/*
+	* Base class that handles the API request
+	* Detects endpoint and calls corresponding method in child class
+	*/
 	abstract class APIHandler {
 		protected $method = '';
 		protected $endpoint = '';
@@ -16,6 +21,11 @@ namespace Controller;
 		protected $listener = Null;
 		protected $db = Null;
 
+		/*
+		* Sets header, database object,
+		* event dispatcher and listener, 
+		* and request argument array
+		*/
 		public function __construct($request, Database\APIDatabase $db_obj) {
 	        header("Access-Control-Allow-Orgin: *");
 	        header("Access-Control-Allow-Methods: *");
@@ -55,7 +65,9 @@ namespace Controller;
 
 
 
-	    
+	    /*
+	    * Method gets called from web/api.php, calls endpoints function 
+	    */ 
 		public function processAPI() {
 	        if (method_exists($this, $this->endpoint)) {
 	        	try {
@@ -67,11 +79,18 @@ namespace Controller;
 	        return $this->_response("No Endpoint: $this->endpoint", 404);
 	    }
 
+	    /* 
+	    * Encodes endpoint data to JSON with right header info
+	    * Status code is wrapped in APIException
+	    */
 	    private function _response($data, $status = 200) {
 	        header("HTTP/1.1 " . $status . " " . $this->_requestStatus($status));
 	        return json_encode($data, JSON_UNESCAPED_SLASHES);
 	    }
 
+	    /*
+	    * Gets status message from status code
+	    */
 	    private function _requestStatus($code) {
 	        $status = array(  
 	            200 => 'OK',
@@ -83,20 +102,17 @@ namespace Controller;
 	        return ($status[$code])?$status[$code]:$status[500]; 
 	    }	   
 
-		private function _connectDB() {
-            $dsn = 'mysql:dbname=' . $_SERVER['DB_DB'] . ';host=' . $_SERVER['DB_HOST'];
-            $this->db = new PDO($dsn, $_SERVER['DB_LOGIN'], $_SERVER['DB_PASSWD']);
-            $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        }
-
-		public function disconnectDB() {
-			$this->db = Null;
-		}
-
+	    /*
+	    * Removes an image from the server
+	    */
         protected function _rmImage($file_path) {
         	@unlink($file_path);
         }
 
+        /*
+        * Create thumbnail of image with maximum pixel size $size
+        * Supports jpeg/jpg/gif/png
+        */
         protected function _createThumb($file_path, $ext, $dest, $size) {
         	switch($ext) {
         		case 'jpg':

@@ -1,10 +1,6 @@
 <?php
 namespace APIEvent;
-    use Symfony\Component\EventDispatcher\EventDispatcher;
     use Symfony\Component\EventDispatcher\Event;
-    use APIException\APIException as APIException;
-    use Exception;
-    use PDO;
 
 	class EmailEvent extends Event {
 		protected $email_owner = Null;
@@ -22,6 +18,9 @@ namespace APIEvent;
 
 		}
 
+		/*
+		* Getter methods
+		*/
 		public function getEmailArray() {
 			return $this->email_array;
 		}

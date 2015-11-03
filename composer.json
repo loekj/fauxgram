@@ -5,7 +5,6 @@
     "autoload": {
     	"psr-4": {
     		"Controller\\": "src/Controller/",
-            "Connection\\": "src/Connection/",
             "APIException\\": "src/Exception/",
             "APIEvent\\": "src/APIEvent/",
             "Database\\": "src/Database/"
