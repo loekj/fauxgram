@@ -1,11 +1,14 @@
 <?php 
 namespace Database;
+    use APIException\APIException as APIException;
+    use Exception;
+    use PDO;
 
     class APIDatabase {
         private $db = Null;
 
         public function __construct() {
-            #$this->_connectDB();
+            $this->_connectDB();
         }
         public function __destruct() {
             $this->db = Null;
@@ -17,35 +20,78 @@ namespace Database;
             $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         }
 
-        public function checkRegistered() {
+
+        public function checkRegistered($email, $password) {
             # Check if user is registered
-            $sql = $this->db->prepare("SELECT * FROM users WHERE email=?");
-            $sql->execute(array($this->request['email']));
-            if (!$result = $sql->fetch(PDO::FETCH_ASSOC)) {
-                throw new APIException("User with this email is not registered!", 400);
-            }
+            $query = "SELECT * FROM users WHERE email=?";
+            $value_array = array($email);
+            $result = $this->CustomQuery(
+                $query,
+                $value_array,
+                "User with this email is not registered!"
+                );
+            $result = $result[0];
 
             # Check against hashed password in database
-            if (!password_verify($this->request['password'], $result['password'])) {
+            if (!password_verify($password, $result['password'])) {
                 throw new APIException("Incorrect password!", 400);
             }
         }
-        public function SELECT($from_array, $where_array, $select_array = "*", $except_msg = "") {
-            if (is_array($select_array)) {
-                $select_array = implode(", ", $select_array);
-            }
+
+        public function NotExists($from_array, $where_array = array(), $except_msg = "", $oper = "=") {
             $from_array = implode(", ", $from_array);
-            $where_array = implode(", ", $where_array);
+            
+            if ($where_array) {
+                $where_keys = array_keys($where_array);
+                $where_clause = " WHERE " . implode(" AND ", array_map(function ($x) use ($oper) {return $x . $oper . "?";} ,$where_keys)); 
+            } else {
+                $where_clause = "";
+            }
+
             try {
-                $sql = $this->db->prepare("SELECT " . $select_array . " FROM " . $from_array . " WHERE " . $where_array);
-                $sql->execute();
-                if (!$result = $sql->fetchAll()) {
+                $sql = $this->db->prepare("SELECT * FROM " . $from_array . $where_clause);
+                $sql->execute(array_values($where_array));
+                if ($result = $sql->fetchAll(PDO::FETCH_ASSOC)) {
                     throw new Exception($except_msg);
                 }
             } catch (Exception $e) {
                 throw new APIException($e->getMessage(), 400);
             }
             return $result;
-        }      
+        }     
+
+        public function Insert($table, $insert_array) {
+            $insert_keys = implode(", ", array_keys($insert_array));
+            $insert_placeholders = implode(", ", array_map(function () {return "?";}, $insert_array));
+            try {
+                $sql = $this->db->prepare("INSERT INTO " . $table . "(" . $insert_keys . ") VALUES (" . $insert_placeholders . ")");
+                $sql->execute(array_values($insert_array));
+            } catch (Exception $e) {
+                throw new APIException($e->getMessage(), 400);
+            }
+        }
+
+        public function CustomQuery($query, $value_array, $except_msg = "", $no_fetch = FALSE, $no_throw = FALSE) {
+            try {
+                $sql = $this->db->prepare($query);
+                $sql->execute($value_array);
+                if (!$no_fetch) {
+                    if (!$result = $sql->fetchAll(PDO::FETCH_ASSOC)) {
+                        if (!$no_throw) {
+                            throw new Exception($except_msg);
+                        }
+                    }
+                } else {
+                    if (!$result = $sql->rowCount()) {
+                        throw new Exception($except_msg);
+                    };
+                }
+            } catch (Exception $e) {
+                throw new APIException($e->getMessage(), 400);
+            }
+            
+            return $result;
+        }
+                           
     }
 ?>

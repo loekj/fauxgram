@@ -1,8 +1,6 @@
 <?php
 # app/src/Controller/APIController.php
 namespace Controller;
-    use Symfony\Component\EventDispatcher\EventDispatcher;
-    use Symfony\Component\EventDispatcher\Event;
     use APIException\APIException as APIException;
     use Exception;
     use PDO;
@@ -27,41 +25,26 @@ namespace Controller;
                     throw new APIException("Invalid query string. Must contain email, password, fname, lname", 400);
                 }
 
-                try {
-                    $sql = $this->db->prepare("SELECT 1 FROM users WHERE email=?");
-                    $sql->execute(array($this->request['email']));
-                    if ($exists = $sql->fetchColumn()) {
-                        throw new Exception("User with this email already exists!");
-                    }
-                } catch (Exception $e) {
-                    throw new APIException($e->getMessage(), 400);
-                }
-
+                $from_array = array("users");
+                $where_array = array("email" => $this->request['email']);
+                $this->db_obj->NotExists(
+                    $from_array,
+                    $where_array,
+                    "User with this email already exists!"
+                    );
+                
                 # Create a random salt and hash. Using Blowfish "$2a$"
                 $hash = password_hash($this->request['password'],PASSWORD_BCRYPT, array('cost' => 10));
-
-                $db_vals = array(
-                    $this->request['email'],
-                    $this->db->quote($hash),
-                    $this->request['fname'],
-                    $this->request['lname']
+                $insert_array = array(
+                    'email' => $this->request['email'],
+                    'password' => $hash,
+                    'fname' => $this->request['fname'],
+                    'lname' => $this->request['lname']
                     );
-                $sql = "INSERT INTO users (email, password, fname, lname) VALUES (" . implode(', ', $db_vals) . ")";
-                try {
-                    $sth = $this->db->query($sql);
-                } catch(Exception $e) {
-                    throw new APIException($e->getMessage(), 500);
-                }
+                $this->db_obj->Insert("users", $insert_array);
 
-                try {
-                    $sth = $this->db->query('SELECT * FROM users');
-                    $rows = $sth->fetchAll(PDO::FETCH_ASSOC);
-                } catch(Exception $e) {
-                    echo $e->getMessage();
-                }
-
-                
                 return "Registered successfully!";
+
             } elseif ($this->method == 'GET') {
                 $required = array(
                     'email'
@@ -73,21 +56,14 @@ namespace Controller;
                 
                 # Get image and comments
                 $thumbpath = __DIR__ . '/../../resource/img/thumb/';
-                try {
-                    $sql = $this->db->prepare("SELECT a.id AS userid, a.email, CONCAT(a.fname, ' ', a.lname)" .
+                $query = "SELECT a.id AS userid, a.email, CONCAT(a.fname, ' ', a.lname)" .
                         " AS name, CONCAT('" . $thumbpath . "', b.path) AS thumbpath". 
                         " FROM users a JOIN images b on a.email=b.owner" .
-                        " WHERE a.email=?");
-                    $sql->execute(array($this->request['email']));
-                    if (!$result = $sql->fetchAll(PDO::FETCH_ASSOC)) {
-                        throw new Exception("User unknown or no images uploaded yet.");
-                    }
-                } catch (Exception $e) {
-                    throw new APIException($e->getMessage(), 400);
-                }
+                        " WHERE a.email=?";
+                $value_array = array($this->request['email']);
+                $result = $this->db_obj->CustomQuery($query, $value_array, "User unknown or no images uploaded yet.");
                 
                 return $result;
-
             } else {
                 throw new APIException("Endpoint only accepts GET requests", 405);
             }
@@ -107,7 +83,7 @@ namespace Controller;
                 if ($missing = array_diff_key(array_flip($required), $this->request)) {
                     throw new APIException("Invalid query string. Must contain email, password, url, title", 400);
                 }
-                $this->_checkRegistered();
+                $this->db_obj->checkRegistered($this->request['email'], $this->request['password']);
 
                 $file = $this->request['url'];
                 $file_headers = @get_headers($file);
@@ -184,6 +160,7 @@ namespace Controller;
                     throw new APIException("Image URL content not copy-able!", 500);
                 }
 
+
                 # Get image dimensions
                 if (!$file_dim = getimagesize($file_path)) {
                     $this->_rmImage($file_path);
@@ -208,24 +185,23 @@ namespace Controller;
                 }
 
                 # Insert image info into database
-                $db_vals = array(
-                    $this->request['email'],
-                    $url_hash,
-                    $this->request['url'],
-                    $this->request['title'],
-                    $ext,
-                    $file_size,
-                    $file_width,
-                    $file_height
+                $insert_array = array(
+                    'owner' => $this->request['email'],
+                    'path' => $url_hash,
+                    'source' => $this->request['url'],
+                    'title' => $this->request['title'],
+                    'ext' => $ext,
+                    'bytes' => $file_size,
+                    'width' => $file_width,
+                    'height' => $file_height
                     );
-                $sql = "INSERT INTO images (owner, path, source, title, ext, bytes, width, height) VALUES (" . implode(', ', $db_vals) . ")";
-                try {
-                    $this->db->query($sql);                               
-                } catch(Exception $e) {
-                    $this->_rmImage($file_path);
-                    throw new APIException($e->getMessage(), 500);
-                }
 
+                try {
+                    $this->db_obj->Insert("images", $insert_array);
+                } catch(APIException $e) {
+                    $this->_rmImage($file_path);
+                    throw $e;
+                }
                 
                 return 'Success!';
             } elseif ($this->method == 'GET') {
@@ -237,16 +213,15 @@ namespace Controller;
                     throw new APIException("Invalid query string. Must contain id", 400);
                 }
                 
-                # Get image
-                $sql = $this->db->prepare("SELECT * FROM images WHERE id=?");
-                $sql->execute(array($this->request['id']));
-                if (!$result = $sql->fetchAll(PDO::FETCH_ASSOC)) {
-                    throw new APIException("No image found!", 400);
-                }
-                
-                $result = $result[0];
-                #unset($result['path']);
-                return $result;       
+
+                $query = "SELECT * FROM images WHERE id=?";
+                $value_array = array($this->request['id']);
+                $result = $this->db_obj->CustomQuery(
+                    $query,
+                    $value_array,
+                    "No image found!"
+                    );
+                return $result[0];       
 
             } elseif ($this->method == 'DELETE') {
                 $required = array(
@@ -259,33 +234,35 @@ namespace Controller;
                     throw new APIException("Invalid query string. Must contain email, password, id", 400);
                 }
 
-                $this->_checkRegistered();
+                $this->db_obj->checkRegistered($this->request['email'], $this->request['password']);
                 
                 # Get image path
-                try {
-                    $sql = $this->db->prepare("SELECT path FROM images WHERE id=?");
-                    $sql->execute(array($this->request['id']));
-                    if (!$result = $sql->fetch(PDO::FETCH_ASSOC)) {
-                        throw new Exception("Image does not exist!");
-                    }  
-                } catch (Exception $e) {
-                    throw new APIException($e->getMessage(), 400);
-                }
+                $query = "SELECT path FROM images WHERE id=? AND owner=?";
+                $value_array = array($this->request['id'], $this->request['email']);
+                $result = $this->db_obj->CustomQuery(
+                    $query,
+                    $value_array,
+                    "No image found!"
+                    );
+                $result = $result[0];
 
-                # Delete image and thumbnail from server
-                $this->_rmImage(__DIR__ . '/../../resource/img/' . $result['path']);
-                $this->_rmImage(__DIR__ . '/../../resource/img/thumb/' . $result['path']);
-
-                # Delete image from database and comments
-                try {
-                    $sql = $this->db->prepare("DELETE a, b FROM images a JOIN comments b ON a.id=b.imgid WHERE a.id=?");
-                    $sql->execute(array($this->request['id']));            
-                } catch (Exception $e) {
-                    throw new APIException($e->getMessage(), 400);
-                }
-
+                $file_path = __DIR__ . '/../../resource/img/' . $result['path'];
+                $thumb_path = __DIR__ . '/../../resource/img/thumb/' . $result['path'];
                 
-                return "Succes!";
+                $this->_rmImage($thumb_path);
+                if (file_exists($file_path)) {
+                    $this->_rmImage($file_path);
+                }
+                if (file_exists($thumb_path)) {
+                    $this->_rmImage($thumb_path);
+                }
+
+                $query = "DELETE a,b FROM images a LEFT OUTER JOIN comments b ON a.id=b.imgid WHERE a.id=?";
+                $value_array = array($this->request['id']);
+                $result = $this->db_obj->CustomQuery($query, $value_array, "", TRUE);
+
+                return $result ? "Succes!" : "Image does not exist";
+
             } elseif ($this->method == 'POST') {
                 $required = array(
                     'email',
@@ -298,18 +275,21 @@ namespace Controller;
                     throw new APIException("Invalid query string. Must contain email, password, title, id", 400);
                 }
 
-                $this->_checkRegistered();
+                $this->db_obj->checkRegistered($this->request['email'], $this->request['password']);
 
-                try {
-                    $sql = $this->db->prepare("UPDATE images SET title=? WHERE id=?");
-                    $sql->execute(array($this->request['title'], $this->request['id']));
-                } catch (Exception $e) {
-                    throw new APIException($e->getMessage(), 400);
-                }
-                if (!$sql->rowCount()) {
-                    throw new APIException("Image ID does not exist or title had same value", 400);
-                }
-                
+                $query = "UPDATE images SET title=? WHERE id=? AND owner=?";
+                $value_array = array(
+                    $this->request['title'],
+                    $this->request['id'],
+                    $this->request['email']
+                    );
+                $result = $this->db_obj->CustomQuery(
+                    $query, 
+                    $value_array, 
+                    "Image ID does not exist or title had same value", 
+                    TRUE
+                    );
+
                 return "Succes!";
             } else {
                 throw new APIException("Endpoint only accepts GET, POST, PUT and DELETE requests", 405);
@@ -330,38 +310,40 @@ namespace Controller;
                     throw new APIException("Invalid query string. Must contain email, password, content, id", 400);
                 }
 
-                $this->_checkRegistered();
+                $this->db_obj->checkRegistered($this->request['email'], $this->request['password']);
 
-                # Check if image exist
-                $sql = $this->db->prepare("SELECT owner FROM images WHERE id=?");
-                $sql->execute(array($this->request['id']));
-                if (!$result_owner = $sql->fetch(PDO::FETCH_ASSOC)) {
-                    throw new APIException("Image ID unknown.", 400);
-                }
+                $query = "SELECT owner FROM images WHERE id=?";
+                $value_array = array($this->request['id']);
+                $result = $this->db_obj->CustomQuery(
+                    $query, 
+                    $value_array, 
+                    "Image ID unknown."
+                    );
+
+                $result_owner = $result[0];
 
                 # Check if content is good sized
                 if (strlen($this->request['content']) > 255) {
                     throw new APIException("Comment is too long. Max 255 chars", 400);
                 }
 
-                $sql = "INSERT INTO comments (owner, content, imgid) VALUES (" .
-                    $this->db->quote($this->request['email']) . ", " .
-                    $this->db->quote($this->request['content']) . ", " .
-                    $this->db->quote($this->request['id']) . ")"; 
-                try {
-                    $this->db->query($sql);                               
-                } catch(Exception $e) {
-                    throw new APIException($e->getMessage(), 500);
-                }
-
                 # Get all emails
-                try {
-                    $sql = $this->db->prepare("SELECT DISTINCT owner FROM comments WHERE imgid=?");
-                    $sql->execute(array($this->request['id']));
-                    $result = $sql->fetchAll(PDO::FETCH_ASSOC);
-                } catch (Exception $e) {
-                    throw new APIException($e->getMessage(), 400);
-                }
+                $query = "SELECT DISTINCT owner FROM comments WHERE imgid=?";
+                $value_array = array($this->request['id']);
+                $result = $this->db_obj->CustomQuery(
+                    $query,
+                    $value_array, 
+                    "",
+                    FALSE,
+                    TRUE
+                    );
+
+                $insert_array = array(
+                    'owner' => $this->request['email'],
+                    'content' => $this->request['content'],
+                    'imgid' => $this->request['id']
+                    );
+                $this->db_obj->Insert("comments", $insert_array);
 
                 $email_array = array();
                 foreach($result as $idx => $arr) {
@@ -383,22 +365,22 @@ namespace Controller;
                 if ($missing = array_diff_key(array_flip($required), $this->request)) {
                     throw new APIException("Invalid query string. Must contain image ID", 400);
                 }
-                
+
                 # Get image and comments
-                try {
-                    $sql = $this->db->prepare("SELECT a.id AS imgid, a.owner AS imageowner," .
-                                                 " a.path AS imagepath, b.id AS commentid," .
-                                                 " b.owner AS commentowner, b.added, b.content AS comment" .
-                                                 " FROM images a JOIN comments b on a.id=b.imgid" .
-                                                 " WHERE a.id=?" .
-                                                 " ORDER BY b.added DESC;");
-                    $sql->execute(array($this->request['id']));
-                    if (!$result = $sql->fetchAll(PDO::FETCH_ASSOC)) {
-                        throw new Exception("Image ID unknown or no comments for this image.");
-                    }
-                } catch (Exception $e) {
-                    throw new APIException($e->getMessage(), 400);
-                }
+                $thumbpath = __DIR__ . '/../../resource/img/thumb/';
+                $query =    "SELECT a.id AS imgid, " . 
+                            "a.owner AS imageowner," .
+                            " a.path AS imagepath, b.id AS commentid," .
+                            " b.owner AS commentowner, b.added, b.content AS comment" .
+                            " FROM images a JOIN comments b on a.id=b.imgid" .
+                            " WHERE a.id=?" .
+                            " ORDER BY b.added ASC";
+                $value_array = array($this->request['id']);
+                $result = $this->db_obj->CustomQuery(
+                            $query, 
+                            $value_array, 
+                            "Image ID unknown or no comments for this image."
+                            );
 
                 return $result;
 

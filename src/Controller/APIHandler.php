@@ -3,14 +3,11 @@
 namespace Controller;
 	use APIException\APIException as APIException;
     use Symfony\Component\EventDispatcher\EventDispatcher;
-    use Symfony\Component\EventDispatcher\Event;	
 	use APIEvent;
 	use PDO;
 	use Database;
 
 	require_once __DIR__.'/../APIEvent/APIDispatcher.php';
-	require_once __DIR__.'/../APIEvent/EmailEvent.php';
-	# cannot have an instance
 	abstract class APIHandler {
 		protected $method = '';
 		protected $endpoint = '';
@@ -25,7 +22,6 @@ namespace Controller;
 	        header("Content-Type: application/json");
 			
 	        $this->db_obj = $db_obj;
-	        $this->_connectDB();
 
 	        $this->endpoint = array_shift($request);
 	        $this->method = $_SERVER['REQUEST_METHOD'];
@@ -46,11 +42,12 @@ namespace Controller;
 	        	case 'POST':
 	        	case 'GET':
 	        	case 'DELETE':
-	        		$this->request = $this->_escapeInputs($request);
+	        		$this->request = $request;
 	        		break;
 		        default:
 		            $this->_response('Invalid method', 405);
 	        }
+
 			$this->dispatcher = new EventDispatcher();
 			$this->listener = new \APIEvent\APIListener();
 			$this->dispatcher->addListener('new.comment', array($this->listener, 'onNewComment'));
@@ -61,7 +58,6 @@ namespace Controller;
 	    
 		public function processAPI() {
 	        if (method_exists($this, $this->endpoint)) {
-	        	# calls endpoint! :D
 	        	try {
 	            	return $this->_response($this->{$this->endpoint}($this->request));
 	            } catch (APIException $e) {
@@ -74,11 +70,6 @@ namespace Controller;
 	    private function _response($data, $status = 200) {
 	        header("HTTP/1.1 " . $status . " " . $this->_requestStatus($status));
 	        return json_encode($data, JSON_UNESCAPED_SLASHES);
-	    }
-
-	    private function _escapeInputs($data) {
-			$data = array_map(array($this->db, 'quote'), $data);
-	    	return $data;
 	    }
 
 	    private function _requestStatus($code) {
@@ -102,22 +93,8 @@ namespace Controller;
 			$this->db = Null;
 		}
 
-		protected function _checkRegistered() {
-            # Check if user is registered
-            $sql = $this->db->prepare("SELECT * FROM users WHERE email=?");
-            $sql->execute(array($this->request['email']));
-            if (!$result = $sql->fetch(PDO::FETCH_ASSOC)) {
-                throw new APIException("User with this email is not registered!", 400);
-            }
-
-            # Check against hashed password in database
-            if (!password_verify($this->request['password'], $result['password'])) {
-                throw new APIException("Incorrect password!", 400);
-            }
-        }
-
         protected function _rmImage($file_path) {
-        	unlink($file_path);
+        	@unlink($file_path);
         }
 
         protected function _createThumb($file_path, $ext, $dest, $size) {
@@ -162,6 +139,5 @@ namespace Controller;
         			imagegif($image_holder, $dest);
         			break;
         	}
-        	// chmod("$dest",777);
         }
 }
